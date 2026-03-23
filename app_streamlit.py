@@ -282,6 +282,10 @@ with col2:
     if rear_img_file:
         st.image(rear_img_file, use_column_width=True, caption="Rear View")
 
+if "prediction_result" not in st.session_state:
+    st.session_state.prediction_result = None
+    st.session_state.duration = 0
+
 if st.button(t["calc_btn"]):
     if not side_img_file or not rear_img_file:
         st.warning(t["warn_upload"])
@@ -293,18 +297,22 @@ if st.button(t["calc_btn"]):
             inf_opt = load_inference_modules()
             
             # Run Inference
-            result = None
             start_time = time.time()
             try:
-                result = inf_opt.predict(side_path, rear_path)
+                st.session_state.prediction_result = inf_opt.predict(side_path, rear_path)
             except Exception as e:
                 st.error(f"Error during inference: {str(e)}")
+                st.session_state.prediction_result = {"remarks": "Failed to run inference"}
             
-            duration = round(time.time() - start_time, 2)
+            st.session_state.duration = round(time.time() - start_time, 2)
             
-            if result and result.get("weight", 0) > 0:
-                weight = round(result["weight"], 2)
-                ratio = round(result.get("ratio", 0), 2)
+if st.session_state.prediction_result is not None:
+    result = st.session_state.prediction_result
+    duration = st.session_state.duration
+            
+    if result and result.get("weight", 0) > 0:
+        weight = round(result["weight"], 2)
+        ratio = round(result.get("ratio", 0), 2)
                 
                 st.success(t["success"].format(duration))
                 
@@ -355,9 +363,9 @@ if st.button(t["calc_btn"]):
                 })
                 st.bar_chart(diet_df.set_index("Feed Type"), height=300)
 
-            else:
-                msg = result.get("remarks", "Failed to detect cattle or sticker.") if result else "Inference failure."
-                st.error(f"❌ Error: {msg}")
+    else:
+        msg = result.get("remarks", "Failed to detect cattle or sticker.") if result else "Inference failure."
+        st.error(f"❌ Error: {msg}")
 
 # FAQ Section
 st.markdown("---")
