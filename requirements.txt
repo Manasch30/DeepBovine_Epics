@@ -2,7 +2,7 @@
 streamlit==1.55.0
 pandas>=2.0.0
 gdown>=4.7.1
-setuptools>=65.5.0
+setuptools==69.5.1
 
 
 # Core ML/Vision (Streamlit runs on CPU, so we use standard PyPI wheels)
