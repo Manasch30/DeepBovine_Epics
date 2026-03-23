@@ -2,6 +2,20 @@ import streamlit as st
 import os
 import time
 import math
+import subprocess
+import sys
+
+# --- Self-Healing OpenCV Fix for Streamlit Cloud ---
+# mmcv automatically installs the non-headless 'opencv-python' behind our backs, 
+# which crashes looking for libGL and libgthread. We catch that crash and purge it!
+try:
+    import cv2
+except ImportError:
+    st.warning("Running self-healing script to fix OpenCV headless conflict...")
+    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", "opencv-python", "opencv-python-headless"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python-headless==4.7.0.72"])
+# ---------------------------------------------------
+
 from PIL import Image
 import pandas as pd
 import gdown
