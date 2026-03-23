@@ -314,54 +314,54 @@ if st.session_state.prediction_result is not None:
         weight = round(result["weight"], 2)
         ratio = round(result.get("ratio", 0), 2)
                 
-                st.success(t["success"].format(duration))
-                
-                # Render Prediction Metrics
-                st.markdown("---")
-                st.markdown(t["est_weight"])
-                
-                metric_col1, metric_col2, metric_col3 = st.columns([2, 1, 1])
-                with metric_col1:
-                    st.metric(t["bw"], f"{weight} kg")
-                with metric_col2:
-                    st.metric(t["ratio"], f"{ratio}")
-                with metric_col3:
-                    st.metric(t["status"], result.get("remarks", "OK"))
-                    
-                # Render Output Images
-                st.markdown(t["masks"])
-                out_col1, out_col2 = st.columns(2)
-                try:
-                    if os.path.exists("side_seg_output.jpg") and os.path.exists("rear_seg_output.jpg"):
-                        with out_col1:
-                            st.image("side_seg_output.jpg", use_column_width=True)
-                        with out_col2:
-                            st.image("rear_seg_output.jpg", use_column_width=True)
-                except:
-                    pass
+        st.success(t["success"].format(duration))
+        
+        # Render Prediction Metrics
+        st.markdown("---")
+        st.markdown(t["est_weight"])
+        
+        metric_col1, metric_col2, metric_col3 = st.columns([2, 1, 1])
+        with metric_col1:
+            st.metric(t["bw"], f"{weight} kg")
+        with metric_col2:
+            st.metric(t["ratio"], f"{ratio}")
+        with metric_col3:
+            st.metric(t["status"], result.get("remarks", "OK"))
+            
+        # Render Output Images
+        st.markdown(t["masks"])
+        out_col1, out_col2 = st.columns(2)
+        try:
+            if os.path.exists("side_seg_output.jpg") and os.path.exists("rear_seg_output.jpg"):
+                with out_col1:
+                    st.image("side_seg_output.jpg", use_column_width=True)
+                with out_col2:
+                    st.image("rear_seg_output.jpg", use_column_width=True)
+        except:
+            pass
 
-                # Render Feed Calculator
-                st.markdown("---")
-                st.markdown(t["tracker"])
-                st.markdown(t["optimal_feed"].format(stage, weight))
-                
-                dry_f, green_f, conc_f = calculate_daily_feed(weight, stage, milk_yield)
-                
-                feed_col1, feed_col2, feed_col3 = st.columns(3)
-                with feed_col1:
-                    st.metric(t["dry"], f"{dry_f:.1f} kg")
-                with feed_col2:
-                    st.metric(t["green"], f"{green_f:.1f} kg")
-                with feed_col3:
-                    st.metric(t["conc"], f"{conc_f:.1f} kg")
-                
-                # Simple Data Chart
-                st.markdown(t["diet_comp"])
-                diet_df = pd.DataFrame({
-                    "Feed Type": ["Dry Fodder", "Green Fodder", "Concentrates"],
-                    "Amount (kg)": [dry_f, green_f, conc_f]
-                })
-                st.bar_chart(diet_df.set_index("Feed Type"), height=300)
+        # Render Feed Calculator
+        st.markdown("---")
+        st.markdown(t["tracker"])
+        st.markdown(t["optimal_feed"].format(stage, weight))
+        
+        dry_f, green_f, conc_f = calculate_daily_feed(weight, stage, milk_yield)
+        
+        feed_col1, feed_col2, feed_col3 = st.columns(3)
+        with feed_col1:
+            st.metric(t["dry"], f"{dry_f:.1f} kg")
+        with feed_col2:
+            st.metric(t["green"], f"{green_f:.1f} kg")
+        with feed_col3:
+            st.metric(t["conc"], f"{conc_f:.1f} kg")
+        
+        # Simple Data Chart
+        st.markdown(t["diet_comp"])
+        diet_df = pd.DataFrame({
+            "Feed Type": ["Dry Fodder", "Green Fodder", "Concentrates"],
+            "Amount (kg)": [dry_f, green_f, conc_f]
+        })
+        st.bar_chart(diet_df.set_index("Feed Type"), height=300)
 
     else:
         msg = result.get("remarks", "Failed to detect cattle or sticker.") if result else "Inference failure."
