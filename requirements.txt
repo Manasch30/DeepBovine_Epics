@@ -24,6 +24,7 @@ Pillow>=9.5.0
 opencv-python-headless==4.7.0.72
 
 # Legacy/Specific Dependencies
+./wheels/chumpy-0.70-py3-none-any.whl
 json_tricks==3.16.1
 xtcocotools>=1.12
 pycocotools==2.0.6
