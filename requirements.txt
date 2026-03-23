@@ -1,19 +1,16 @@
-# Minimal requirements for Streamlit Cloud Deployment
-# Target: Python 3.10
-
 # UI
 streamlit==1.55.0
 pandas>=2.0.0
 gdown>=4.7.1
 
-# Core ML/Vision
-torch==1.13.1+cu117
-torchvision==0.14.1+cu117
+# Core ML/Vision (Streamlit runs on CPU, so we use standard PyPI wheels)
+torch==1.13.1
+torchvision==0.14.1
 torchaudio==0.13.1
---extra-index-url https://download.pytorch.org/whl/cu117
 
 # OpenMMLab Core
-mmcv-full==1.7.0 -f https://download.openmmlab.com/mmcv/dist/cu117/torch1.13.0/index.html
+# Direct link to the exact Linux CPU wheel to completely bypass the -f uv parsing bug
+https://download.openmmlab.com/mmcv/dist/cpu/torch1.13.0/mmcv_full-1.7.0-cp310-cp310-manylinux1_x86_64.whl
 mmdet==2.26.0
 mmpose==0.29.0
 mmsegmentation==0.30.0
@@ -26,7 +23,7 @@ matplotlib==3.7.1
 Pillow>=9.5.0
 opencv-python-headless==4.7.0.72
 
-# Legacy/Specific Dependencies for mmdet/mmpose/mmseg
+# Legacy/Specific Dependencies
 chumpy==0.70
 json_tricks==3.16.1
 xtcocotools>=1.12
