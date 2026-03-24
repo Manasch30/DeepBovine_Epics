@@ -361,11 +361,13 @@ if st.session_state.prediction_result is not None:
         st.markdown(t["masks"])
         out_col1, out_col2 = st.columns(2)
         try:
-            if os.path.exists("side_seg_output.jpg") and os.path.exists("rear_seg_output.jpg"):
+            side_mask = result.get("side_mask")
+            rear_mask = result.get("rear_mask")
+            if side_mask and rear_mask and os.path.exists(side_mask) and os.path.exists(rear_mask):
                 with out_col1:
-                    st.image("side_seg_output.jpg", use_column_width=True)
+                    st.image(side_mask, use_column_width=True)
                 with out_col2:
-                    st.image("rear_seg_output.jpg", use_column_width=True)
+                    st.image(rear_mask, use_column_width=True)
         except:
             pass
 
