@@ -236,20 +236,10 @@ def load_inference_modules():
     from inference import inference_optimized 
     return inference_optimized
 
-@st.cache_resource
-def get_inference_lock():
-    import threading
-    return threading.Lock()
-
-def save_uploaded_file(uploaded_file, file_prefix):
-    import uuid
+def save_uploaded_file(uploaded_file, filename):
     upload_dir = os.path.join(project_root, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
-    
-    unique_id = uuid.uuid4().hex[:8]
-    filename = f"{file_prefix}_{unique_id}.jpg"
     file_path = os.path.join(upload_dir, filename)
-    
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     return file_path
@@ -304,31 +294,21 @@ with col2:
 if "prediction_result" not in st.session_state:
     st.session_state.prediction_result = None
     st.session_state.duration = 0
-if "last_side_filename" not in st.session_state:
-    st.session_state.last_side_filename = None
-
-# Clear the stale UI instantly if the user changes the image
-current_side_filename = side_img_file.name if side_img_file else None
-if current_side_filename != st.session_state.last_side_filename:
-    st.session_state.prediction_result = None
-    st.session_state.last_side_filename = current_side_filename
 
 if st.button(t["calc_btn"]):
     if not side_img_file or not rear_img_file:
         st.warning(t["warn_upload"])
     else:
-        with st.spinner("⏳ " + t["analyzing"] + " (You are in queue...)"):
-            # Setup secure unique file paths
-            side_path = save_uploaded_file(side_img_file, "temp_side")
-            rear_path = save_uploaded_file(rear_img_file, "temp_rear")
+        with st.spinner(t["analyzing"]):
+            # Setup
+            side_path = save_uploaded_file(side_img_file, "temp_side.jpg")
+            rear_path = save_uploaded_file(rear_img_file, "temp_rear.jpg")
             inf_opt = load_inference_modules()
-            inference_lock = get_inference_lock()
             
-            # Run Inference Securely behind the Global Mutex Lock
+            # Run Inference
             start_time = time.time()
             try:
-                with inference_lock:
-                    st.session_state.prediction_result = inf_opt.predict(side_path, rear_path)
+                st.session_state.prediction_result = inf_opt.predict(side_path, rear_path)
             except Exception as e:
                 st.error(f"Error during inference: {str(e)}")
                 st.session_state.prediction_result = {"remarks": "Failed to run inference"}
@@ -339,18 +319,6 @@ if st.session_state.prediction_result is not None:
     result = st.session_state.prediction_result
     duration = st.session_state.duration
             
-    # Always attempt to Render Output Images first so the user can see visual AI logic
-    side_mask = result.get("side_mask")
-    rear_mask = result.get("rear_mask")
-    if side_mask and os.path.exists(side_mask):
-        st.markdown(t["masks"])
-        out_col1, out_col2 = st.columns(2)
-        with out_col1:
-            st.image(side_mask, use_column_width=True)
-        if rear_mask and os.path.exists(rear_mask):
-            with out_col2:
-                st.image(rear_mask, use_column_width=True)
-
     if result and result.get("weight", 0) > 0:
         weight = round(result["weight"], 2)
         ratio = round(result.get("ratio", 0), 2)
@@ -368,6 +336,18 @@ if st.session_state.prediction_result is not None:
             st.metric(t["ratio"], f"{ratio}")
         with metric_col3:
             st.metric(t["status"], result.get("remarks", "OK"))
+            
+        # Render Output Images
+        st.markdown(t["masks"])
+        out_col1, out_col2 = st.columns(2)
+        try:
+            if os.path.exists("side_seg_output.jpg") and os.path.exists("rear_seg_output.jpg"):
+                with out_col1:
+                    st.image("side_seg_output.jpg", use_column_width=True)
+                with out_col2:
+                    st.image("rear_seg_output.jpg", use_column_width=True)
+        except:
+            pass
 
         # Render Feed Calculator
         st.markdown("---")
