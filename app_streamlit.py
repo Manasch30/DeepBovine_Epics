@@ -205,19 +205,46 @@ if project_root not in sys.path:
 def ensure_models_downloaded():
     sentinel = os.path.join(project_root, "models", "v1", "seg", "iter_40000.pth")
     if not os.path.exists(sentinel):
-        st.info("⏳ First boot: Downloading model weights (~2.3 GB). This may take 3–5 minutes...")
+        st.info("⏳ First boot: Downloading model weights archive (~2.3 GB). This will take 3–5 minutes...")
         import traceback
         try:
-            gdown.download_folder(
-                id="1h0GxqjjuxZnmrIdhdHI731jnDv3AbzkU",
-                output=os.path.join(project_root, "models"),
-                quiet=False,
-                use_cookies=False
+            # 1. Download the monolithic .7z file
+            archive_path = os.path.join(project_root, "models.7z")
+            
+            # REPLACE 'YOUR_FILE_ID' WITH THE 33-CHARACTER GOOGLE DRIVE FILE ID OF THE .7Z FILE
+            gdown.download(
+                id="1VfOUmvg4xQFiIBgcVPKn1TovGQN-5wAy", 
+                output=archive_path,
+                quiet=False
             )
-            st.success("✅ Models downloaded successfully! Reloading...")
+            
+            # 2. Extract the .7z file
+            st.info("📦 Download complete! Extracting models to system memory...")
+            import py7zr
+            with py7zr.SevenZipFile(archive_path, mode='r') as z:
+                z.extractall(path=project_root)
+                
+            # 3. Handle nested 'cattle-web/models' folder structure if it exists
+            nested_models_dir = os.path.join(project_root, "cattle-web", "models")
+            target_models_dir = os.path.join(project_root, "models")
+            
+            if os.path.exists(nested_models_dir):
+                import shutil
+                os.makedirs(target_models_dir, exist_ok=True)
+                for item in os.listdir(nested_models_dir):
+                    source = os.path.join(nested_models_dir, item)
+                    destination = os.path.join(target_models_dir, item)
+                    if not os.path.exists(destination):
+                        shutil.move(source, destination)
+            
+            # 4. Cleanup to save server disk space
+            if os.path.exists(archive_path):
+                os.remove(archive_path)
+                
+            st.success("✅ Models downloaded and extracted successfully! Reloading...")
             st.rerun()
         except Exception as e:
-            st.error("🚨 Google Drive blocked the automated 2.3GB download via Captcha/Rate Limit! Please use the HuggingFace upload method we discussed instead.")
+            st.error("🚨 Download or extraction failed!")
             st.code(traceback.format_exc())
 
 ensure_models_downloaded()
