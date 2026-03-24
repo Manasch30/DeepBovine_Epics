@@ -123,54 +123,40 @@ def predict(side_fname,rear_fname):
 
         # initialize seg & pose model
         # build the model from a config file and a checkpoint file
-        model = init_segmentor(seg_config_file, seg_checkpoint_file, device='cpu')
-
-        rear_pose_model = init_pose_model(rear_pose_config, rear_pose_checkpoint, device='cpu')
-        side_pose_model = init_pose_model(side_pose_config, side_pose_checkpoint, device='cpu')
-     
-        print("Load pose model")
-        # initialize detector
-        # rear_det_model = init_detector(det_config, det_checkpoint)
-        try:
-            side_det_model = init_detector(det_config, det_checkpoint, device='cpu')
-            print(type(side_det_model))
-        except:
-            print('something really fucked up')
-            
-        print("Load det model")
-        # load weight predict file
-
+        import gc
         loaded_model = joblib.load(weight_filename)
-        print("Load weight model")
-        # model=model
-        # rear_pose_model=rear_pose_model
-        # side_pose_model=side_pose_model
-        # side_det_model=side_det_model
-        # loaded_model=loaded_model
         rear_img = rear_fname
         side_img = side_fname
 
-        # inference detection
+        print("--- RAM OPTIMIZATION: Detection ---")
+        side_det_model = init_detector(det_config, det_checkpoint, device='cpu')
         rear_mmdet_results = inference_detector(side_det_model, rear_fname)
         side_mmdet_results = inference_detector(side_det_model, side_fname)
-        
-        # print(len(side_mmdet_results))
-        # print(len(rear_mmdet_results))
-        # extract person (COCO_ID=1) bounding boxes from the detection results
         rear_person_results = process_mmdet_results(rear_mmdet_results, cat_id=20)
         side_person_results = process_mmdet_results(side_mmdet_results, cat_id=20)
-        # print(side_person_results)
-        # print(f'side objcts:{len(side_person_results)}')
-        # print(f'rear objcts:{len(rear_person_results)}')
+        
+        # Destroy and cleanup to save RAM
+        del side_det_model
+        del rear_mmdet_results
+        del side_mmdet_results
+        gc.collect()
 
+        print("--- RAM OPTIMIZATION: Segmentation ---")
+        model = init_segmentor(seg_config_file, seg_checkpoint_file, device='cpu')
         side_seg_result = inference_segmentor(model, side_img)
         rear_seg_result = inference_segmentor(model, rear_img)
 
-        # Save segmented images
+        # Save segmented images uniquely for this specific user session
         print("DEBUG: Saving segmented images...")
-        model.show_result(side_img, side_seg_result, out_file='side_seg_output.jpg', opacity=0.5)
-        model.show_result(rear_img, rear_seg_result, out_file='rear_seg_output.jpg', opacity=0.5)
-        print("DEBUG: Saved side_seg_output.jpg and rear_seg_output.jpg")
+        side_mask_path = side_img.replace(".jpg", "_mask.jpg")
+        rear_mask_path = rear_img.replace(".jpg", "_mask.jpg")
+        model.show_result(side_img, side_seg_result, out_file=side_mask_path, opacity=0.5)
+        model.show_result(rear_img, rear_seg_result, out_file=rear_mask_path, opacity=0.5)
+        print(f"DEBUG: Saved {side_mask_path} and {rear_mask_path}")
+        
+        # Destroy and cleanup to save RAM
+        del model
+        gc.collect()
 
         # print(f' seg-res {type(side_seg_result)}')
         # print(side_seg_result)
@@ -186,21 +172,30 @@ def predict(side_fname,rear_fname):
         if sticker<100:
             predicted_cattle_weight = 0
             status = "Please apply sticker correctly."
-            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
+            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker if sticker > 0 else 0,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
             return res 
         # inference pose
+        print("--- RAM OPTIMIZATION: Rear Pose ---")
+        rear_pose_model = init_pose_model(rear_pose_config, rear_pose_checkpoint, device='cpu')
         rear_pose_results, rear_returned_outputs = inference_top_down_pose_model(rear_pose_model,
                                                                                 rear_img,
                                                                                 rear_person_results,
                                                                                 bbox_thr=0.3,
                                                                                 format='xyxy',
                                                                                 dataset=rear_pose_model.cfg.data.test.type)
+        del rear_pose_model
+        gc.collect()
+
+        print("--- RAM OPTIMIZATION: Side Pose ---")
+        side_pose_model = init_pose_model(side_pose_config, side_pose_checkpoint, device='cpu')
         side_pose_results, side_returned_outputs = inference_top_down_pose_model(side_pose_model,
                                                                                 side_img,
                                                                                 side_person_results,
                                                                                 bbox_thr=0.3,
                                                                                 format='xyxy',
                                                                             dataset=side_pose_model.cfg.data.test.type)
+        del side_pose_model
+        gc.collect()
 
     # KPT rear and side
         rear_kpt = rear_pose_results[0]["keypoints"][:,0:2]
@@ -210,12 +205,12 @@ def predict(side_fname,rear_fname):
         if(side_kpt.shape!=(9,2)):
             predicted_cattle_weight = 0
             status = "please change side image."
-            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
+            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
             return res
         if(rear_kpt.shape!=(4,2)):
             predicted_cattle_weight = 0
             status = "please change rear image."
-            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
+            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
             return res
         rearKptID=rearx0=reary0=rearx1=reary1=rearx2=reary2=rearx3=reary3=0
         sideKptID=sidex0=sidey0=sidex1=sidey1=sidex2=sidey2=sidex3=sidey3=sidex4=sidey4=sidex5=sidey5=sidex6=sidey6=sidex7=sidey7=sidex8=sidey8=0
@@ -301,11 +296,12 @@ def predict(side_fname,rear_fname):
                 [[ side_Length_shoulderbone,side_F_Girth,	side_R_Girth, sticker, cattle , actual_width]])
         # predicted_cattle_weight = loaded_model.predict(
         #         [[ slw,sfg,	srg, sticker, cattle , aw]])
-        res: dict = {} 
-        status = "ok"
-        predicted_cattle_weight= float(predicted_cattle_weight)
-        res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
-        return calculate_cattle_weight(cattle, sticker, predicted_cattle_weight, status)
+        res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
+        
+        final_result = calculate_cattle_weight(cattle, sticker, predicted_cattle_weight, status)
+        final_result["side_mask"] = side_mask_path
+        final_result["rear_mask"] = rear_mask_path
+        return final_result
         
 
     except:
@@ -324,6 +320,12 @@ def predict(side_fname,rear_fname):
             model = init_segmentor(seg_config_file, seg_checkpoint_file, device='cpu')
             side_seg_result = inference_segmentor(model, side_fname)
             rear_seg_result = inference_segmentor(model, rear_fname)
+            
+            # Clean memory completely
+            del model
+            import gc
+            gc.collect()
+
             seg = np.asarray(side_seg_result)
             sticker = cattle = bg = 0
         
