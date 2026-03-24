@@ -304,23 +304,24 @@ def predict(side_fname,rear_fname):
         return final_result
         
 
-    except:
-
-        # predicted_cattle_weight= 0
-        # status= "Please try again.Something went wrong."
-        # res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
-        # #os.remove(side_img)
-        # #os.remove(rear_img)
-        # return res
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
 
         try:
-            print("except stage")
+            print("except stage fallback triggered")
             seg_config_file = 'models/v1/seg/deeplabv3plus_r101-d8_512x512_40k_voc12aug.py'
             seg_checkpoint_file = 'models/v1/seg/iter_40000.pth'
             model = init_segmentor(seg_config_file, seg_checkpoint_file, device='cpu')
             side_seg_result = inference_segmentor(model, side_fname)
             rear_seg_result = inference_segmentor(model, rear_fname)
             
+            # Save segmented images uniquely for this specific user session
+            side_mask_path = side_fname.replace(".jpg", "_mask.jpg")
+            rear_mask_path = rear_fname.replace(".jpg", "_mask.jpg")
+            model.show_result(side_fname, side_seg_result, out_file=side_mask_path, opacity=0.5)
+            model.show_result(rear_fname, rear_seg_result, out_file=rear_mask_path, opacity=0.5)
+
             # Clean memory completely
             del model
             import gc
@@ -332,10 +333,13 @@ def predict(side_fname,rear_fname):
             sticker = (seg == 2).sum()
 
             cattle = (seg == 1).sum()
-            status = "ok"
-            predicted_cattle_weight= ((cattle+sticker)/(sticker))
+            status = "Fall-back inference triggered."
+            predicted_cattle_weight = ((cattle+sticker)/(sticker)) if sticker > 0 else 0
             
-            return optimize_null_weight(cattle, sticker, predicted_cattle_weight, status)
+            res = optimize_null_weight(cattle, sticker, predicted_cattle_weight, status)
+            res["side_mask"] = side_mask_path
+            res["rear_mask"] = rear_mask_path
+            return res
         except:
             predicted_cattle_weight= 0
             status= "Please try again. Cannot find a cattle."
