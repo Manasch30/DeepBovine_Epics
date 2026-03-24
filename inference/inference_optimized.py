@@ -129,30 +129,31 @@ def predict(side_fname,rear_fname):
         side_img = side_fname
 
         print("--- RAM OPTIMIZATION: Detection ---")
-        side_det_model = init_detector(det_config, det_checkpoint, device='cpu')
-        rear_mmdet_results = inference_detector(side_det_model, rear_fname)
-        side_mmdet_results = inference_detector(side_det_model, side_fname)
-        rear_person_results = process_mmdet_results(rear_mmdet_results, cat_id=20)
-        side_person_results = process_mmdet_results(side_mmdet_results, cat_id=20)
-        
-        # Destroy and cleanup to save RAM
-        del side_det_model
-        del rear_mmdet_results
-        del side_mmdet_results
-        gc.collect()
+        try:
+            side_det_model = init_detector(det_config, det_checkpoint, device='cpu')
+            rear_mmdet_results = inference_detector(side_det_model, rear_fname)
+            side_mmdet_results = inference_detector(side_det_model, side_fname)
+            rear_person_results = process_mmdet_results(rear_mmdet_results, cat_id=20)
+            side_person_results = process_mmdet_results(side_mmdet_results, cat_id=20)
+            
+            # Destroy and cleanup to save RAM
+            del side_det_model
+            del rear_mmdet_results
+            del side_mmdet_results
+            gc.collect()
+        except Exception as e:
+            print(f'Detection failed: {e}')
 
         print("--- RAM OPTIMIZATION: Segmentation ---")
         model = init_segmentor(seg_config_file, seg_checkpoint_file, device='cpu')
         side_seg_result = inference_segmentor(model, side_img)
         rear_seg_result = inference_segmentor(model, rear_img)
 
-        # Save segmented images uniquely for this specific user session
+        # Save segmented images
         print("DEBUG: Saving segmented images...")
-        side_mask_path = side_img.replace(".jpg", "_mask.jpg")
-        rear_mask_path = rear_img.replace(".jpg", "_mask.jpg")
-        model.show_result(side_img, side_seg_result, out_file=side_mask_path, opacity=0.5)
-        model.show_result(rear_img, rear_seg_result, out_file=rear_mask_path, opacity=0.5)
-        print(f"DEBUG: Saved {side_mask_path} and {rear_mask_path}")
+        model.show_result(side_img, side_seg_result, out_file='side_seg_output.jpg', opacity=0.5)
+        model.show_result(rear_img, rear_seg_result, out_file='rear_seg_output.jpg', opacity=0.5)
+        print("DEBUG: Saved side_seg_output.jpg and rear_seg_output.jpg")
         
         # Destroy and cleanup to save RAM
         del model
@@ -172,7 +173,7 @@ def predict(side_fname,rear_fname):
         if sticker<100:
             predicted_cattle_weight = 0
             status = "Please apply sticker correctly."
-            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker if sticker > 0 else 0,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
+            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
             return res 
         # inference pose
         print("--- RAM OPTIMIZATION: Rear Pose ---")
@@ -205,12 +206,12 @@ def predict(side_fname,rear_fname):
         if(side_kpt.shape!=(9,2)):
             predicted_cattle_weight = 0
             status = "please change side image."
-            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
+            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
             return res
         if(rear_kpt.shape!=(4,2)):
             predicted_cattle_weight = 0
             status = "please change rear image."
-            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
+            res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
             return res
         rearKptID=rearx0=reary0=rearx1=reary1=rearx2=reary2=rearx3=reary3=0
         sideKptID=sidex0=sidey0=sidex1=sidey1=sidex2=sidey2=sidex3=sidey3=sidex4=sidey4=sidex5=sidey5=sidex6=sidey6=sidex7=sidey7=sidex8=sidey8=0
@@ -296,32 +297,30 @@ def predict(side_fname,rear_fname):
                 [[ side_Length_shoulderbone,side_F_Girth,	side_R_Girth, sticker, cattle , actual_width]])
         # predicted_cattle_weight = loaded_model.predict(
         #         [[ slw,sfg,	srg, sticker, cattle , aw]])
-        res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker,"remarks":status, "side_mask": side_mask_path, "rear_mask": rear_mask_path}
-        
-        final_result = calculate_cattle_weight(cattle, sticker, predicted_cattle_weight, status)
-        final_result["side_mask"] = side_mask_path
-        final_result["rear_mask"] = rear_mask_path
-        return final_result
+        res: dict = {} 
+        status = "ok"
+        predicted_cattle_weight= float(predicted_cattle_weight)
+        res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
+        return calculate_cattle_weight(cattle, sticker, predicted_cattle_weight, status)
         
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    except:
+
+        # predicted_cattle_weight= 0
+        # status= "Please try again.Something went wrong."
+        # res = {"weight":predicted_cattle_weight,"ratio": cattle/sticker ,"remarks":status}
+        # #os.remove(side_img)
+        # #os.remove(rear_img)
+        # return res
 
         try:
-            print("except stage fallback triggered")
+            print("except stage")
             seg_config_file = 'models/v1/seg/deeplabv3plus_r101-d8_512x512_40k_voc12aug.py'
             seg_checkpoint_file = 'models/v1/seg/iter_40000.pth'
             model = init_segmentor(seg_config_file, seg_checkpoint_file, device='cpu')
             side_seg_result = inference_segmentor(model, side_fname)
             rear_seg_result = inference_segmentor(model, rear_fname)
             
-            # Save segmented images uniquely for this specific user session
-            side_mask_path = side_fname.replace(".jpg", "_mask.jpg")
-            rear_mask_path = rear_fname.replace(".jpg", "_mask.jpg")
-            model.show_result(side_fname, side_seg_result, out_file=side_mask_path, opacity=0.5)
-            model.show_result(rear_fname, rear_seg_result, out_file=rear_mask_path, opacity=0.5)
-
             # Clean memory completely
             del model
             import gc
@@ -333,13 +332,10 @@ def predict(side_fname,rear_fname):
             sticker = (seg == 2).sum()
 
             cattle = (seg == 1).sum()
-            status = "Fall-back inference triggered."
-            predicted_cattle_weight = ((cattle+sticker)/(sticker)) if sticker > 0 else 0
+            status = "ok"
+            predicted_cattle_weight= ((cattle+sticker)/(sticker))
             
-            res = optimize_null_weight(cattle, sticker, predicted_cattle_weight, status)
-            res["side_mask"] = side_mask_path
-            res["rear_mask"] = rear_mask_path
-            return res
+            return optimize_null_weight(cattle, sticker, predicted_cattle_weight, status)
         except:
             predicted_cattle_weight= 0
             status= "Please try again. Cannot find a cattle."
