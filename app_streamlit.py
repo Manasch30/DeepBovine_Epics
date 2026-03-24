@@ -339,6 +339,18 @@ if st.session_state.prediction_result is not None:
     result = st.session_state.prediction_result
     duration = st.session_state.duration
             
+    # Always attempt to Render Output Images first so the user can see visual AI logic
+    side_mask = result.get("side_mask")
+    rear_mask = result.get("rear_mask")
+    if side_mask and os.path.exists(side_mask):
+        st.markdown(t["masks"])
+        out_col1, out_col2 = st.columns(2)
+        with out_col1:
+            st.image(side_mask, use_column_width=True)
+        if rear_mask and os.path.exists(rear_mask):
+            with out_col2:
+                st.image(rear_mask, use_column_width=True)
+
     if result and result.get("weight", 0) > 0:
         weight = round(result["weight"], 2)
         ratio = round(result.get("ratio", 0), 2)
@@ -356,20 +368,6 @@ if st.session_state.prediction_result is not None:
             st.metric(t["ratio"], f"{ratio}")
         with metric_col3:
             st.metric(t["status"], result.get("remarks", "OK"))
-            
-        # Render Output Images
-        st.markdown(t["masks"])
-        out_col1, out_col2 = st.columns(2)
-        try:
-            side_mask = result.get("side_mask")
-            rear_mask = result.get("rear_mask")
-            if side_mask and rear_mask and os.path.exists(side_mask) and os.path.exists(rear_mask):
-                with out_col1:
-                    st.image(side_mask, use_column_width=True)
-                with out_col2:
-                    st.image(rear_mask, use_column_width=True)
-        except:
-            pass
 
         # Render Feed Calculator
         st.markdown("---")
