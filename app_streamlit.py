@@ -236,10 +236,20 @@ def load_inference_modules():
     from inference import inference_optimized 
     return inference_optimized
 
-def save_uploaded_file(uploaded_file, filename):
+@st.cache_resource
+def get_inference_lock():
+    import threading
+    return threading.Lock()
+
+def save_uploaded_file(uploaded_file, file_prefix):
+    import uuid
     upload_dir = os.path.join(project_root, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
+    
+    unique_id = uuid.uuid4().hex[:8]
+    filename = f"{file_prefix}_{unique_id}.jpg"
     file_path = os.path.join(upload_dir, filename)
+    
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     return file_path
@@ -294,21 +304,31 @@ with col2:
 if "prediction_result" not in st.session_state:
     st.session_state.prediction_result = None
     st.session_state.duration = 0
+if "last_side_filename" not in st.session_state:
+    st.session_state.last_side_filename = None
+
+# Clear the stale UI instantly if the user changes the image
+current_side_filename = side_img_file.name if side_img_file else None
+if current_side_filename != st.session_state.last_side_filename:
+    st.session_state.prediction_result = None
+    st.session_state.last_side_filename = current_side_filename
 
 if st.button(t["calc_btn"]):
     if not side_img_file or not rear_img_file:
         st.warning(t["warn_upload"])
     else:
-        with st.spinner(t["analyzing"]):
-            # Setup
-            side_path = save_uploaded_file(side_img_file, "temp_side.jpg")
-            rear_path = save_uploaded_file(rear_img_file, "temp_rear.jpg")
+        with st.spinner("⏳ " + t["analyzing"] + " (You are in queue...)"):
+            # Setup secure unique file paths
+            side_path = save_uploaded_file(side_img_file, "temp_side")
+            rear_path = save_uploaded_file(rear_img_file, "temp_rear")
             inf_opt = load_inference_modules()
+            inference_lock = get_inference_lock()
             
-            # Run Inference
+            # Run Inference Securely behind the Global Mutex Lock
             start_time = time.time()
             try:
-                st.session_state.prediction_result = inf_opt.predict(side_path, rear_path)
+                with inference_lock:
+                    st.session_state.prediction_result = inf_opt.predict(side_path, rear_path)
             except Exception as e:
                 st.error(f"Error during inference: {str(e)}")
                 st.session_state.prediction_result = {"remarks": "Failed to run inference"}
